@@ -1,49 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>1.0</priority>
+    <loc>https://rafaysiddiqui.vercel.app/</loc>
   </url>
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/work</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
+    <loc>https://rafaysiddiqui.vercel.app/work</loc>
   </url>
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/work/news-app</loc>
-    <priority>0.6</priority>
+    <loc>https://rafaysiddiqui.vercel.app/work/saas-fusion</loc>
   </url>
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/work/smit-dashboard</loc>
-    <priority>0.6</priority>
+    <loc>https://rafaysiddiqui.vercel.app/work/news-app</loc>
   </url>
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/work/executive-chauffeur-service</loc>
-    <priority>0.6</priority>
+    <loc>https://rafaysiddiqui.vercel.app/work/smit-dashboard</loc>
   </url>
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/work/medical-webpage</loc>
-    <priority>0.6</priority>
+    <loc>https://rafaysiddiqui.vercel.app/work/executive-chauffeur-service</loc>
   </url>
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/work/aitheos</loc>
-    <priority>0.6</priority>
+    <loc>https://rafaysiddiqui.vercel.app/work/medical-webpage</loc>
   </url>
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/work/ar-business</loc>
-    <priority>0.5</priority>
+    <loc>https://rafaysiddiqui.vercel.app/work/aitheos</loc>
   </url>
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/work/beeptool</loc>
-    <priority>0.5</priority>
+    <loc>https://rafaysiddiqui.vercel.app/work/ar-business</loc>
   </url>
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/work/clean-phone</loc>
-    <priority>0.5</priority>
+    <loc>https://rafaysiddiqui.vercel.app/work/beeptool</loc>
   </url>
   <url>
-    <loc>https://rafay-siddiqui-portfolio.vercel.app/work/royal-vapoo-store</loc>
-    <priority>0.5</priority>
+    <loc>https://rafaysiddiqui.vercel.app/work/clean-phone</loc>
+  </url>
+  <url>
+    <loc>https://rafaysiddiqui.vercel.app/work/royal-vapoo-store</loc>
   </url>
 </urlset>

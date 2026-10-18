@@ -6,7 +6,7 @@ type MetaInput = {
   path?: string;
 };
 
-const SITE_URL = "https://rafay-siddiqui-portfolio.vercel.app";
+const SITE_URL = "https://rafaysiddiqui.vercel.app";
 
 function setMeta(name: string, content: string, attr: "name" | "property" = "name") {
   let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${name}"]`);
@@ -34,7 +34,7 @@ function setLink(rel: string, href: string) {
  */
 export function useDocumentMeta({ title, description, path = "/" }: MetaInput) {
   useEffect(() => {
-    const normalizedTitle = title.replaceAll(" — ", " | ");
+    const normalizedTitle = title.replace(/ — /g, " | ");
     const fullTitle = normalizedTitle.includes("Rafay Siddiqui")
       ? normalizedTitle
       : `${normalizedTitle} | Rafay Siddiqui`;

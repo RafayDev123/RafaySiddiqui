@@ -3,10 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useMotionPreference } from "./MotionPreferenceContext";
 
 /**
- * Navigates to an in-page section (`#work`, `#contact`, etc.) without relying
- * on native `href="#..."` anchors — those would collide with HashRouter's own
- * use of the URL hash for routing. On the homepage this just scrolls; from
- * any other route it navigates home first and scrolls once it has rendered.
+ * Navigates to an in-page section on the homepage. From other routes, it
+ * returns to the homepage with the requested section in the query string.
  */
 export function useSectionNav() {
   const navigate = useNavigate();

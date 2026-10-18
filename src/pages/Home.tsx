@@ -14,7 +14,8 @@ import { siteConfig } from "@/data/site";
 export default function Home() {
   useDocumentMeta({
     title: `${siteConfig.name} — ${siteConfig.role}`,
-    description: siteConfig.subhead,
+    description:
+      "Rafay Siddiqui is a frontend developer in Hyderabad, Pakistan, building responsive, production-ready web experiences with React, Next.js, and TypeScript.",
     path: "/",
   });
 
