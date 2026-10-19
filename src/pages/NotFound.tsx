@@ -8,6 +8,7 @@ export default function NotFound() {
     title: "Page Not Found — Rafay Siddiqui",
     description: "This page doesn't exist.",
     path: "/404",
+    indexable: false,
   });
 
   return (

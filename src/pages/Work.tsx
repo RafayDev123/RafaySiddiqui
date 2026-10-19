@@ -6,6 +6,7 @@ import { ProjectRow } from "@/components/work/ProjectRow";
 import { Reveal } from "@/components/ui/Reveal";
 import { projects } from "@/data/projects";
 import { useDocumentMeta } from "@/lib/useDocumentMeta";
+import pageMetadata from "@/data/pageMetadata.json";
 import { cn } from "@/utils/cn";
 
 const filters = ["All", "React", "Websites", "Dashboards / Tools"] as const;
@@ -21,10 +22,7 @@ export default function Work() {
   const [filter, setFilter] = useState<(typeof filters)[number]>("All");
 
   useDocumentMeta({
-    title: "Selected Work — Rafay Siddiqui",
-    description:
-      "Frontend projects built by Rafay Siddiqui, including a React news app, dashboards, and marketing and brand websites.",
-    path: "/work",
+    ...pageMetadata.work,
   });
 
   const visible = useMemo(

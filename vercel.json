@@ -1,12 +1,3 @@
 {
-  "rewrites": [
-    {
-      "source": "/work",
-      "destination": "/"
-    },
-    {
-      "source": "/work/:slug",
-      "destination": "/"
-    }
-  ]
+  "cleanUrls": true
 }

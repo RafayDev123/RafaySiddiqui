@@ -1,0 +1,12 @@
+{
+  "home": {
+    "title": "Rafay Siddiqui | Frontend Developer",
+    "description": "Rafay Siddiqui is a frontend developer in Hyderabad, Pakistan, building responsive, production-ready web experiences with React, Next.js, and TypeScript.",
+    "path": "/"
+  },
+  "work": {
+    "title": "Selected Work | Rafay Siddiqui",
+    "description": "Frontend projects built by Rafay Siddiqui, including a React news app, dashboards, and marketing and brand websites.",
+    "path": "/work"
+  }
+}

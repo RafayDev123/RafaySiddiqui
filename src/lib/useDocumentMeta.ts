@@ -4,6 +4,7 @@ type MetaInput = {
   title: string;
   description: string;
   path?: string;
+  indexable?: boolean;
 };
 
 const SITE_URL = "https://rafaysiddiqui.vercel.app";
@@ -19,20 +20,36 @@ function setMeta(name: string, content: string, attr: "name" | "property" = "nam
 }
 
 function setLink(rel: string, href: string) {
-  let el = document.head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+  const elements = document.head.querySelectorAll<HTMLLinkElement>(`link[rel="${rel}"]`);
+  const [el, ...duplicates] = elements;
+  duplicates.forEach((duplicate) => duplicate.remove());
+
   if (!el) {
-    el = document.createElement("link");
-    el.setAttribute("rel", rel);
-    document.head.appendChild(el);
+    const newLink = document.createElement("link");
+    newLink.setAttribute("rel", rel);
+    document.head.appendChild(newLink);
+    newLink.setAttribute("href", href);
+    return;
   }
   el.setAttribute("href", href);
+}
+
+function removeLinks(rel: string) {
+  document.head
+    .querySelectorAll<HTMLLinkElement>(`link[rel="${rel}"]`)
+    .forEach((el) => el.remove());
 }
 
 /**
  * Lightweight client-side "metadata API" for this Vite SPA — keeps <title>,
  * description, canonical and Open Graph/Twitter tags in sync per route.
  */
-export function useDocumentMeta({ title, description, path = "/" }: MetaInput) {
+export function useDocumentMeta({
+  title,
+  description,
+  path = "/",
+  indexable = true,
+}: MetaInput) {
   useEffect(() => {
     const normalizedTitle = title.replace(/ — /g, " | ");
     const fullTitle = normalizedTitle.includes("Rafay Siddiqui")
@@ -46,6 +63,11 @@ export function useDocumentMeta({ title, description, path = "/" }: MetaInput) {
     setMeta("og:url", `${SITE_URL}${path}`, "property");
     setMeta("twitter:title", fullTitle);
     setMeta("twitter:description", description);
-    setLink("canonical", `${SITE_URL}${path}`);
-  }, [title, description, path]);
+    setMeta("robots", indexable ? "index, follow" : "noindex, nofollow");
+    if (indexable) {
+      setLink("canonical", `${SITE_URL}${path}`);
+    } else {
+      removeLinks("canonical");
+    }
+  }, [title, description, path, indexable]);
 }

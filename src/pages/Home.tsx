@@ -9,14 +9,11 @@ import { GitHubSection } from "@/components/sections/GitHubSection";
 import { About } from "@/components/sections/About";
 import { Contact } from "@/components/sections/Contact";
 import { useDocumentMeta } from "@/lib/useDocumentMeta";
-import { siteConfig } from "@/data/site";
+import pageMetadata from "@/data/pageMetadata.json";
 
 export default function Home() {
   useDocumentMeta({
-    title: `${siteConfig.name} — ${siteConfig.role}`,
-    description:
-      "Rafay Siddiqui is a frontend developer in Hyderabad, Pakistan, building responsive, production-ready web experiences with React, Next.js, and TypeScript.",
-    path: "/",
+    ...pageMetadata.home,
   });
 
   return (
