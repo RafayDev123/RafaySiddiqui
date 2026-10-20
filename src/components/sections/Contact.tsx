@@ -297,13 +297,82 @@
 
 
 
-import { useRef, useState, type FormEvent } from "react";
-import emailjs from "@emailjs/browser";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowUpRight, CheckCircle2, Mail } from "lucide-react";
-import ReCAPTCHA from "react-google-recaptcha";
 import { Container } from "@/components/ui/Container";
 import { GitHubIcon, LinkedInIcon } from "@/components/icons";
 import { siteConfig } from "@/data/site";
+
+type EnterpriseRecaptchaApi = {
+  ready: (callback: () => void) => void;
+  render: (
+    container: HTMLElement,
+    parameters: {
+      sitekey: string;
+      action: string;
+      callback: (token: string) => void;
+      "expired-callback": () => void;
+      "error-callback": () => void;
+    }
+  ) => number;
+  reset: (widgetId?: number) => void;
+};
+
+declare global {
+  interface Window {
+    grecaptcha?: { enterprise?: EnterpriseRecaptchaApi };
+  }
+}
+
+let enterpriseRecaptchaPromise: Promise<EnterpriseRecaptchaApi> | undefined;
+
+function loadEnterpriseRecaptcha() {
+  const existingApi = window.grecaptcha?.enterprise;
+  if (existingApi) return Promise.resolve(existingApi);
+
+  if (!enterpriseRecaptchaPromise) {
+    enterpriseRecaptchaPromise = new Promise<EnterpriseRecaptchaApi>((resolve, reject) => {
+      let script = document.querySelector<HTMLScriptElement>(
+        'script[data-recaptcha-enterprise="true"]'
+      );
+
+      const onLoad = () => {
+        if (script) script.dataset.loaded = "true";
+        const api = window.grecaptcha?.enterprise;
+        if (!api) {
+          reject(new Error("Google reCAPTCHA Enterprise did not initialize."));
+          return;
+        }
+        api.ready(() => resolve(api));
+      };
+      const onError = () => {
+        script?.remove();
+        reject(new Error("Google reCAPTCHA Enterprise failed to load."));
+      };
+
+      if (!script) {
+        script = document.createElement("script");
+        script.src = "https://www.google.com/recaptcha/enterprise.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        script.dataset.recaptchaEnterprise = "true";
+        script.addEventListener("load", onLoad, { once: true });
+        script.addEventListener("error", onError, { once: true });
+        document.head.appendChild(script);
+      } else if (script.dataset.loaded === "true") {
+        onLoad();
+      } else {
+        script.addEventListener("load", onLoad, { once: true });
+        script.addEventListener("error", onError, { once: true });
+      }
+    }).catch((error: unknown) => {
+      enterpriseRecaptchaPromise = undefined;
+      throw error;
+    });
+  }
+
+  return enterpriseRecaptchaPromise;
+}
 
 type FormState = {
   name: string;
@@ -332,12 +401,50 @@ export function Contact() {
   const [errors, setErrors] = useState<Errors>({});
   const [status, setStatus] = useState<"idle" | "sending" | "success">("idle");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const captchaRef = useRef<ReCAPTCHA>(null);
-  const emailjsServiceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const emailjsTemplateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-  const emailjsPublicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+  const captchaContainerRef = useRef<HTMLDivElement>(null);
+  const resetCaptchaRef = useRef<() => void>(() => {});
   const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+
+  useEffect(() => {
+    const container = captchaContainerRef.current;
+    if (!recaptchaSiteKey || !container) return;
+
+    let active = true;
+    loadEnterpriseRecaptcha()
+      .then((api) => {
+        if (!active) return;
+        const widgetId = api.render(container, {
+          sitekey: recaptchaSiteKey,
+          action: "contact",
+          callback: (token) => {
+            setCaptchaToken(token);
+            setErrors((current) => ({ ...current, captcha: undefined }));
+          },
+          "expired-callback": () => setCaptchaToken(null),
+          "error-callback": () => {
+            setCaptchaToken(null);
+            setErrors((current) => ({
+              ...current,
+              captcha: "reCAPTCHA could not load. Please try again.",
+            }));
+          },
+        });
+        resetCaptchaRef.current = () => api.reset(widgetId);
+      })
+      .catch(() => {
+        if (active) {
+          setErrors((current) => ({
+            ...current,
+            captcha: "reCAPTCHA could not load. Please refresh and try again.",
+          }));
+        }
+      });
+
+    return () => {
+      active = false;
+      resetCaptchaRef.current = () => {};
+    };
+  }, [recaptchaSiteKey]);
 
   const validate = (): Errors => {
     const next: Errors = {};
@@ -366,43 +473,40 @@ export function Contact() {
       return;
     }
 
-    if (!formRef.current) {
-      setErrors({ submit: "The form could not be submitted. Please try again." });
-      return;
-    }
-
-    if (!emailjsServiceId || !emailjsTemplateId || !emailjsPublicKey) {
-      setErrors({
-        submit: "Email service is not configured. Please try again later.",
-      });
-      return;
-    }
-
     setErrors({});
     setStatus("sending");
 
     try {
-      await emailjs.sendForm(
-        emailjsServiceId,
-        emailjsTemplateId,
-        formRef.current,
-        { publicKey: emailjsPublicKey }
-      );
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, captchaToken }),
+      });
+      const result = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        if (result.error === "captcha_rejected") {
+          setErrors({ captcha: "reCAPTCHA verification failed. Please complete it again." });
+        } else {
+          setErrors({ submit: "Your message could not be sent. Please try again later." });
+        }
+        setStatus("idle");
+        setCaptchaToken(null);
+        resetCaptchaRef.current();
+        return;
+      }
 
       setForm(initialState);
       setCaptchaToken(null);
-      captchaRef.current?.reset();
+      resetCaptchaRef.current();
       setStatus("success");
     } catch (error) {
-      const emailJsError = error as { text?: string };
-      console.error("EmailJS submission failed:", error);
+      console.error("Contact form submission failed:", error);
       setStatus("idle");
       setCaptchaToken(null);
-      captchaRef.current?.reset();
+      resetCaptchaRef.current();
       setErrors({
-        submit:
-          emailJsError?.text ||
-          "EmailJS rejected the request. Check your service ID, template ID, public key, and template variables.",
+        submit: "Your message could not be sent. Please try again later.",
       });
     }
   };
@@ -482,7 +586,6 @@ export function Contact() {
           </div>
 
           <form
-            ref={formRef}
             onSubmit={handleSubmit}
             noValidate
             className="space-y-5"
@@ -551,16 +654,7 @@ export function Contact() {
 
             {recaptchaSiteKey ? (
               <div className="flex justify-start">
-                <ReCAPTCHA
-                  ref={captchaRef}
-                  sitekey={recaptchaSiteKey}
-                  onChange={(token) => {
-                    setCaptchaToken(token || null);
-                    setErrors((current) => ({ ...current, captcha: undefined }));
-                  }}
-                  onExpired={() => setCaptchaToken(null)}
-                  onErrored={() => setCaptchaToken(null)}
-                />
+                <div ref={captchaContainerRef} />
               </div>
             ) : (
               <p className="text-xs text-red-400">reCAPTCHA is not configured.</p>
