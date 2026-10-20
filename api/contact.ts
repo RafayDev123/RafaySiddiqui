@@ -99,8 +99,9 @@ async function getEmailProviderMessage(response: Response): Promise<string> {
   try {
     const parsed: unknown = JSON.parse(body);
     if (isRecord(parsed)) {
-      for (const key of ["message", "error", "text"]) {
-        if (typeof parsed[key] === "string") return parsed[key];
+      const nestedError = isRecord(parsed.error) ? parsed.error.message : undefined;
+      for (const value of [parsed.message, parsed.error, parsed.text, nestedError]) {
+        if (typeof value === "string") return value;
       }
       return "Provider returned an unrecognized error response.";
     }
@@ -109,6 +110,14 @@ async function getEmailProviderMessage(response: Response): Promise<string> {
   }
 
   return body || "Provider returned an empty error response.";
+}
+
+function logContactEvent(
+  requestId: string,
+  stage: string,
+  details: Record<string, string | number | boolean> = {}
+): void {
+  console.info(JSON.stringify({ requestId, stage, ...details }));
 }
 
 function respond(
@@ -123,155 +132,206 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    respond(res, 405, "method_not_allowed");
-    return;
-  }
-
-  const submission = parseSubmission(req.body);
-  if (!submission) {
-    respond(res, 400, "invalid_request");
-    return;
-  }
-
-  const {
-    RECAPTCHA_PROJECT_ID: projectId,
-    RECAPTCHA_API_KEY: apiKey,
-    VITE_RECAPTCHA_SITE_KEY: siteKey,
-    RECAPTCHA_ALLOWED_HOSTNAMES: configuredHostnames,
-    EMAILJS_SERVICE_ID: emailServiceId,
-    EMAILJS_TEMPLATE_ID: emailTemplateId,
-    EMAILJS_PUBLIC_KEY: emailPublicKey,
-    EMAILJS_PRIVATE_KEY: emailPrivateKey,
-  } = process.env;
-  const allowedHostnames = configuredHostnames
-    ?.split(",")
-    .map(normalizeHostname)
-    .filter(Boolean);
-
-  if (
-    !projectId ||
-    !apiKey ||
-    !siteKey ||
-    !allowedHostnames?.length ||
-    !emailServiceId ||
-    !emailTemplateId ||
-    !emailPublicKey ||
-    !emailPrivateKey
-  ) {
-    console.error("Contact endpoint is missing required server configuration.");
-    respond(res, 503, "service_unavailable");
-    return;
-  }
-
-  const assessmentUrl = new URL(
-    `https://recaptchaenterprise.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/assessments`
-  );
-  assessmentUrl.searchParams.set("key", apiKey);
-
-  let assessmentResponse: Response;
-  try {
-    assessmentResponse = await fetch(assessmentUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: {
-          token: submission.captchaToken,
-          siteKey,
-          expectedAction,
-          ...(typeof req.headers["user-agent"] === "string"
-            ? { userAgent: req.headers["user-agent"] }
-            : {}),
-        },
-      }),
-      signal: AbortSignal.timeout(4000),
-    });
-  } catch {
-    console.error("reCAPTCHA assessment request failed.");
-    respond(res, 502, "verification_unavailable");
-    return;
-  }
-
-  if (!assessmentResponse.ok) {
-    console.error("reCAPTCHA assessment API returned HTTP", assessmentResponse.status);
-    respond(res, 502, "verification_unavailable");
-    return;
-  }
-
-  let assessment: unknown;
-  try {
-    assessment = await assessmentResponse.json();
-  } catch {
-    console.error("reCAPTCHA assessment API returned invalid JSON.");
-    respond(res, 502, "verification_unavailable");
-    return;
-  }
-
-  const tokenProperties = isRecord(assessment) ? assessment.tokenProperties : undefined;
-  if (!isRecord(tokenProperties) || tokenProperties.valid !== true) {
-    respond(res, 403, "captcha_rejected");
-    return;
-  }
-
-  const hostname =
-    typeof tokenProperties.hostname === "string"
-      ? normalizeHostname(tokenProperties.hostname)
-      : "";
-  if (
-    !allowedHostnames.includes(hostname) ||
-    tokenProperties.action !== expectedAction
-  ) {
-    respond(res, 403, "captcha_rejected");
-    return;
-  }
-
   const requestId = randomUUID();
-  let emailResponse: Response;
+  res.setHeader("X-Request-Id", requestId);
+  logContactEvent(requestId, "request_received", {
+    method: req.method ?? "UNKNOWN",
+  });
+
   try {
-    emailResponse = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        service_id: emailServiceId,
-        template_id: emailTemplateId,
-        user_id: emailPublicKey,
-        accessToken: emailPrivateKey,
-        template_params: {
-          name: submission.name,
-          email: submission.email,
-          projectType: submission.projectType,
-          message: submission.message,
-        },
-      }),
-      signal: AbortSignal.timeout(4000),
-    });
-  } catch {
-    console.error("EmailJS contact delivery request failed.", { requestId });
-    res.setHeader("X-Request-Id", requestId);
-    respond(res, 502, "email_unavailable");
-    return;
-  }
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST");
+      logContactEvent(requestId, "request_rejected", { reason: "method_not_allowed" });
+      respond(res, 405, "method_not_allowed");
+      return;
+    }
 
-  if (!emailResponse.ok) {
-    const providerMessage = await getEmailProviderMessage(emailResponse);
-    console.error("EmailJS rejected contact delivery.", {
-      requestId,
+    const submission = parseSubmission(req.body);
+    if (!submission) {
+      logContactEvent(requestId, "input_validation_failed", {
+        reason: "invalid_request",
+      });
+      respond(res, 400, "invalid_request");
+      return;
+    }
+    logContactEvent(requestId, "input_validation_completed");
+
+    const {
+      RECAPTCHA_PROJECT_ID: projectId,
+      RECAPTCHA_API_KEY: apiKey,
+      VITE_RECAPTCHA_SITE_KEY: siteKey,
+      RECAPTCHA_ALLOWED_HOSTNAMES: configuredHostnames,
+      EMAILJS_SERVICE_ID: emailServiceId,
+      EMAILJS_TEMPLATE_ID: emailTemplateId,
+      EMAILJS_PUBLIC_KEY: emailPublicKey,
+      EMAILJS_PRIVATE_KEY: emailPrivateKey,
+    } = process.env;
+    const allowedHostnames = configuredHostnames
+      ?.split(",")
+      .map(normalizeHostname)
+      .filter(Boolean);
+
+    if (
+      !projectId ||
+      !apiKey ||
+      !siteKey ||
+      !allowedHostnames?.length ||
+      !emailServiceId ||
+      !emailTemplateId ||
+      !emailPublicKey ||
+      !emailPrivateKey
+    ) {
+      logContactEvent(requestId, "configuration_missing");
+      respond(res, 503, "service_unavailable");
+      return;
+    }
+
+    const assessmentUrl = new URL(
+      `https://recaptchaenterprise.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/assessments`
+    );
+    assessmentUrl.searchParams.set("key", apiKey);
+
+    logContactEvent(requestId, "captcha_verification_started");
+    let assessmentResponse: Response;
+    try {
+      assessmentResponse = await fetch(assessmentUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: {
+            token: submission.captchaToken,
+            siteKey,
+            expectedAction,
+            ...(typeof req.headers["user-agent"] === "string"
+              ? { userAgent: req.headers["user-agent"] }
+              : {}),
+          },
+        }),
+        signal: AbortSignal.timeout(4000),
+      });
+    } catch (error) {
+      logContactEvent(requestId, "captcha_verification_failed", {
+        reason: error instanceof Error ? error.name : "unknown_error",
+      });
+      respond(res, 502, "verification_unavailable");
+      return;
+    }
+
+    if (!assessmentResponse.ok) {
+      const providerMessage = await getEmailProviderMessage(assessmentResponse);
+      logContactEvent(requestId, "captcha_provider_error", {
+        status: assessmentResponse.status,
+        providerMessage: sanitizeProviderMessage(providerMessage, [
+          apiKey,
+          siteKey,
+          submission.captchaToken,
+          projectId,
+        ]),
+      });
+      respond(res, 502, "verification_unavailable");
+      return;
+    }
+
+    let assessment: unknown;
+    try {
+      assessment = await assessmentResponse.json();
+    } catch {
+      logContactEvent(requestId, "captcha_provider_error", {
+        reason: "invalid_json",
+        status: assessmentResponse.status,
+      });
+      respond(res, 502, "verification_unavailable");
+      return;
+    }
+
+    const tokenProperties = isRecord(assessment)
+      ? assessment.tokenProperties
+      : undefined;
+    if (!isRecord(tokenProperties) || tokenProperties.valid !== true) {
+      logContactEvent(requestId, "captcha_rejected", {
+        reason: "invalid_token",
+      });
+      respond(res, 403, "captcha_rejected");
+      return;
+    }
+
+    const hostname =
+      typeof tokenProperties.hostname === "string"
+        ? normalizeHostname(tokenProperties.hostname)
+        : "";
+    if (!allowedHostnames.includes(hostname)) {
+      logContactEvent(requestId, "captcha_rejected", {
+        reason: "hostname_mismatch",
+      });
+      respond(res, 403, "captcha_rejected");
+      return;
+    }
+    if (tokenProperties.action !== expectedAction) {
+      logContactEvent(requestId, "captcha_rejected", {
+        reason: "action_mismatch",
+      });
+      respond(res, 403, "captcha_rejected");
+      return;
+    }
+    logContactEvent(requestId, "captcha_verification_completed");
+
+    logContactEvent(requestId, "emailjs_request_started");
+    let emailResponse: Response;
+    try {
+      emailResponse = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: emailServiceId,
+          template_id: emailTemplateId,
+          user_id: emailPublicKey,
+          accessToken: emailPrivateKey.trim(),
+          template_params: {
+            name: submission.name,
+            email: submission.email,
+            projectType: submission.projectType,
+            message: submission.message,
+          },
+        }),
+        signal: AbortSignal.timeout(4000),
+      });
+    } catch (error) {
+      logContactEvent(requestId, "emailjs_request_failed", {
+        reason: error instanceof Error ? error.name : "unknown_error",
+      });
+      respond(res, 502, "email_unavailable");
+      return;
+    }
+
+    logContactEvent(requestId, "emailjs_response_received", {
       status: emailResponse.status,
-      providerMessage: sanitizeProviderMessage(providerMessage, [
-        emailServiceId,
-        emailTemplateId,
-        emailPublicKey,
-        emailPrivateKey,
-        submission.name,
-        submission.email,
-        submission.message,
-      ]),
     });
-    res.setHeader("X-Request-Id", requestId);
-    respond(res, 502, "email_unavailable");
-    return;
-  }
+    if (!emailResponse.ok) {
+      const providerMessage = await getEmailProviderMessage(emailResponse);
+      logContactEvent(requestId, "emailjs_rejected", {
+        status: emailResponse.status,
+        providerMessage: sanitizeProviderMessage(providerMessage, [
+          emailServiceId,
+          emailTemplateId,
+          emailPublicKey,
+          emailPrivateKey,
+          submission.name,
+          submission.email,
+          submission.message,
+        ]),
+      });
+      respond(res, 502, "email_unavailable");
+      return;
+    }
 
-  res.status(200).json({ success: true });
+    logContactEvent(requestId, "emailjs_accepted", {
+      status: emailResponse.status,
+    });
+    res.status(200).json({ success: true });
+  } catch (error) {
+    logContactEvent(requestId, "unexpected_exception", {
+      reason: error instanceof Error ? error.name : "unknown_error",
+    });
+    if (!res.headersSent) respond(res, 500, "internal_error");
+  }
 }

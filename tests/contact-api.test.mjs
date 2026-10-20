@@ -179,9 +179,11 @@ test("fails closed when Google returns an API error", async () => {
 });
 
 test("does not report success when EmailJS rejects delivery", async () => {
-  const loggedErrors = [];
+  const loggedEvents = [];
+  const originalConsoleInfo = console.info;
   const originalConsoleError = console.error;
-  console.error = (...args) => loggedErrors.push(args);
+  console.info = (...args) => loggedEvents.push(args);
+  console.error = (...args) => loggedEvents.push(args);
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     fetchCalls.push({ url, options });
@@ -207,6 +209,7 @@ test("does not report success when EmailJS rejects delivery", async () => {
   try {
     result = await submit();
   } finally {
+    console.info = originalConsoleInfo;
     console.error = originalConsoleError;
   }
 
@@ -214,7 +217,13 @@ test("does not report success when EmailJS rejects delivery", async () => {
   assert.deepEqual(result.body, { error: "email_unavailable" });
   assert.match(result.headers["X-Request-Id"], /^[0-9a-f-]{36}$/);
   assert.equal(fetchCalls.length, 2);
-  const diagnostic = JSON.stringify(loggedErrors);
+  const diagnostic = loggedEvents.map(([event]) => event).join("\n");
+  assert.match(diagnostic, /"stage":"request_received"/);
+  assert.match(diagnostic, /"stage":"captcha_verification_completed"/);
+  assert.match(diagnostic, /"stage":"emailjs_request_started"/);
+  assert.match(diagnostic, /"stage":"emailjs_response_received"/);
+  assert.match(diagnostic, /"stage":"emailjs_rejected"/);
+  assert.match(diagnostic, new RegExp(result.headers["X-Request-Id"]));
   assert.match(diagnostic, /403/);
   assert.match(diagnostic, /invalid key \[redacted\]/);
   assert.doesNotMatch(
