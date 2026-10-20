@@ -10,6 +10,7 @@ const envKeys = [
   "EMAILJS_SERVICE_ID",
   "EMAILJS_TEMPLATE_ID",
   "EMAILJS_PUBLIC_KEY",
+  "EMAILJS_PRIVATE_KEY",
 ];
 const originalEnv = new Map();
 let originalFetch;
@@ -73,6 +74,7 @@ beforeEach(() => {
     EMAILJS_SERVICE_ID: "test-service",
     EMAILJS_TEMPLATE_ID: "test-template",
     EMAILJS_PUBLIC_KEY: "test-public-key",
+    EMAILJS_PRIVATE_KEY: "test-private-key",
   });
   originalFetch = globalThis.fetch;
   fetchCalls = [];
@@ -107,6 +109,7 @@ test("assesses the Cloud checkbox token before sending email", async () => {
   assert.equal(assessment.event.siteKey, "test-cloud-site-key");
   const email = JSON.parse(fetchCalls[1].options.body);
   assert.equal(email.template_params.message, validSubmission.message);
+  assert.equal(email.accessToken, "test-private-key");
   assert.equal("captchaToken" in email.template_params, false);
 });
 
@@ -195,7 +198,7 @@ test("does not report success when EmailJS rejects delivery", async () => {
       );
     }
     return new Response(
-      "Forbidden: invalid key test-public-key for test@example.com. Message: This is a test contact message.",
+      "Forbidden: invalid key test-public-key and test-private-key for test@example.com. Message: This is a test contact message.",
       { status: 403 }
     );
   };
@@ -214,7 +217,10 @@ test("does not report success when EmailJS rejects delivery", async () => {
   const diagnostic = JSON.stringify(loggedErrors);
   assert.match(diagnostic, /403/);
   assert.match(diagnostic, /invalid key \[redacted\]/);
-  assert.doesNotMatch(diagnostic, /test-public-key|test@example\.com|test contact message/);
+  assert.doesNotMatch(
+    diagnostic,
+    /test-public-key|test-private-key|test@example\.com|test contact message/
+  );
 });
 
 test("fails closed when server configuration is missing", async () => {
@@ -227,4 +233,17 @@ test("fails closed when server configuration is missing", async () => {
 
   assert.equal(result.statusCode, 503);
   assert.deepEqual(result.body, { error: "service_unavailable" });
+});
+
+test("fails closed when the EmailJS private key is missing", async () => {
+  delete process.env.EMAILJS_PRIVATE_KEY;
+  globalThis.fetch = async () => {
+    throw new Error("fetch must not run");
+  };
+
+  const result = await submit();
+
+  assert.equal(result.statusCode, 503);
+  assert.deepEqual(result.body, { error: "service_unavailable" });
+  assert.equal(fetchCalls.length, 0);
 });

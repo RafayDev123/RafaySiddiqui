@@ -143,6 +143,7 @@ export default async function handler(
     EMAILJS_SERVICE_ID: emailServiceId,
     EMAILJS_TEMPLATE_ID: emailTemplateId,
     EMAILJS_PUBLIC_KEY: emailPublicKey,
+    EMAILJS_PRIVATE_KEY: emailPrivateKey,
   } = process.env;
   const allowedHostnames = configuredHostnames
     ?.split(",")
@@ -156,7 +157,8 @@ export default async function handler(
     !allowedHostnames?.length ||
     !emailServiceId ||
     !emailTemplateId ||
-    !emailPublicKey
+    !emailPublicKey ||
+    !emailPrivateKey
   ) {
     console.error("Contact endpoint is missing required server configuration.");
     respond(res, 503, "service_unavailable");
@@ -234,6 +236,7 @@ export default async function handler(
         service_id: emailServiceId,
         template_id: emailTemplateId,
         user_id: emailPublicKey,
+        accessToken: emailPrivateKey,
         template_params: {
           name: submission.name,
           email: submission.email,
@@ -259,6 +262,7 @@ export default async function handler(
         emailServiceId,
         emailTemplateId,
         emailPublicKey,
+        emailPrivateKey,
         submission.name,
         submission.email,
         submission.message,
