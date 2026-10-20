@@ -176,6 +176,9 @@ test("fails closed when Google returns an API error", async () => {
 });
 
 test("does not report success when EmailJS rejects delivery", async () => {
+  const loggedErrors = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => loggedErrors.push(args);
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     fetchCalls.push({ url, options });
@@ -191,14 +194,27 @@ test("does not report success when EmailJS rejects delivery", async () => {
         { status: 200 }
       );
     }
-    return new Response("delivery failed", { status: 500 });
+    return new Response(
+      "Forbidden: invalid key test-public-key for test@example.com. Message: This is a test contact message.",
+      { status: 403 }
+    );
   };
 
-  const result = await submit();
+  let result;
+  try {
+    result = await submit();
+  } finally {
+    console.error = originalConsoleError;
+  }
 
   assert.equal(result.statusCode, 502);
   assert.deepEqual(result.body, { error: "email_unavailable" });
+  assert.match(result.headers["X-Request-Id"], /^[0-9a-f-]{36}$/);
   assert.equal(fetchCalls.length, 2);
+  const diagnostic = JSON.stringify(loggedErrors);
+  assert.match(diagnostic, /403/);
+  assert.match(diagnostic, /invalid key \[redacted\]/);
+  assert.doesNotMatch(diagnostic, /test-public-key|test@example\.com|test contact message/);
 });
 
 test("fails closed when server configuration is missing", async () => {

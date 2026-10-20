@@ -488,7 +488,12 @@ export function Contact() {
         if (result.error === "captcha_rejected") {
           setErrors({ captcha: "reCAPTCHA verification failed. Please complete it again." });
         } else {
-          setErrors({ submit: "Your message could not be sent. Please try again later." });
+          const requestId = response.headers.get("X-Request-Id");
+          setErrors({
+            submit: requestId
+              ? `Your message could not be sent. Reference: ${requestId}. Please try again later.`
+              : "Your message could not be sent. Please try again later.",
+          });
         }
         setStatus("idle");
         setCaptchaToken(null);

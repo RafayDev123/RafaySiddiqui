@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 
 type VercelRequest = IncomingMessage & { body?: unknown };
 type VercelResponse = ServerResponse & {
@@ -68,6 +69,46 @@ function parseSubmission(body: unknown): ContactSubmission | null {
 
 function normalizeHostname(value: string) {
   return value.trim().toLowerCase().replace(/\.$/, "");
+}
+
+function sanitizeProviderMessage(
+  message: string,
+  sensitiveValues: string[]
+): string {
+  let sanitized = message
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/[^\x20-\x7E]/g, "?")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[redacted email]")
+    .replace(/\b(?:Bearer\s+)?(?:AIza[0-9A-Za-z_-]{20,}|[0-9A-Za-z_-]{32,})\b/g, "[redacted credential]");
+
+  for (const value of sensitiveValues.filter(Boolean)) {
+    sanitized = sanitized.split(value).join("[redacted]");
+  }
+
+  return sanitized.slice(0, 300);
+}
+
+async function getEmailProviderMessage(response: Response): Promise<string> {
+  let body: string;
+  try {
+    body = await response.text();
+  } catch {
+    return "Provider error response could not be read.";
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (isRecord(parsed)) {
+      for (const key of ["message", "error", "text"]) {
+        if (typeof parsed[key] === "string") return parsed[key];
+      }
+      return "Provider returned an unrecognized error response.";
+    }
+  } catch {
+    return body || "Provider returned an empty error response.";
+  }
+
+  return body || "Provider returned an empty error response.";
 }
 
 function respond(
@@ -183,6 +224,7 @@ export default async function handler(
     return;
   }
 
+  const requestId = randomUUID();
   let emailResponse: Response;
   try {
     emailResponse = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
@@ -202,13 +244,27 @@ export default async function handler(
       signal: AbortSignal.timeout(4000),
     });
   } catch {
-    console.error("EmailJS contact delivery request failed.");
+    console.error("EmailJS contact delivery request failed.", { requestId });
+    res.setHeader("X-Request-Id", requestId);
     respond(res, 502, "email_unavailable");
     return;
   }
 
   if (!emailResponse.ok) {
-    console.error("EmailJS contact delivery returned HTTP", emailResponse.status);
+    const providerMessage = await getEmailProviderMessage(emailResponse);
+    console.error("EmailJS rejected contact delivery.", {
+      requestId,
+      status: emailResponse.status,
+      providerMessage: sanitizeProviderMessage(providerMessage, [
+        emailServiceId,
+        emailTemplateId,
+        emailPublicKey,
+        submission.name,
+        submission.email,
+        submission.message,
+      ]),
+    });
+    res.setHeader("X-Request-Id", requestId);
     respond(res, 502, "email_unavailable");
     return;
   }
