@@ -159,7 +159,7 @@ export function Hero() {
 
         <div
           data-hero-reveal
-          className="mt-16 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-[var(--border)] pt-6"
+          className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-[var(--border)] pt-6"
         >
           {techSignals.map((tech) => (
             <span
