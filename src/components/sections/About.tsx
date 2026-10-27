@@ -43,7 +43,7 @@ export function About() {
             <div className="mt-6 space-y-5 text-[15px] leading-relaxed text-[var(--text-muted)]">
               <Reveal as="div" delay={0.06}>
                 <p>
-                 I’m Rafay Siddiqui, a Frontend Developer based in Hyderabad, Pakistan. My day-to-day work focuses on turning Figma designs and ideas into responsive, production-ready web interfaces using React, Next.js, TypeScript, and modern frontend technologies. I make sure the final product works smoothly across screen sizes, browsers, and real-world use cases.
+                 I’m Rafay Siddiqui, a frontend and web developer based in Hyderabad, Pakistan. My day-to-day work focuses on turning Figma designs and ideas into responsive, production-ready web interfaces using React, Next.js, TypeScript, and modern frontend technologies. I make sure the final product works smoothly across screen sizes, browsers, and real-world use cases.
                 </p>
               </Reveal>
               <Reveal as="div" delay={0.12}>

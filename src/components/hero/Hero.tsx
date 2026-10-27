@@ -116,7 +116,7 @@ export function Hero() {
           data-hero-reveal
           className="text-balance mx-auto max-w-4xl font-display text-[clamp(2.4rem,7vw,5.2rem)] font-medium leading-[1.03] text-[var(--text)]"
         >
-          Frontend developer turning designs into{" "}
+          Frontend &amp; web developer turning designs into{" "}
           <span className="text-[var(--accent)]">real, working products.</span>
         </h1>
 

@@ -9,9 +9,9 @@ export const siteConfig = {
   email: "rafaysiddiqui713@gmail.com",
   phone: "03138345518",
   availability: "Available for freelance",
-  headline: "Frontend Developer building modern, AI assisted web products.",
+  headline: "Frontend and web developer building modern, AI-assisted web products.",
   subhead:
-    "I’m Rafay Siddiqui a Frontend Developer focused on React, Next.js, and TypeScript, creating modern, scalable, production ready web experiences with a blend of strong engineering and AI-assisted development.",
+    "I’m Rafay Siddiqui, a frontend and web developer in Hyderabad, Pakistan, building responsive websites and web apps with React, Next.js, and TypeScript.",
   taglineShort: "Design to code. Frontend engineering. AI assisted delivery.",
   social: {
     github: "https://github.com/RafayDev123/",
