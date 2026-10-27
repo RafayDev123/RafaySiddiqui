@@ -147,14 +147,14 @@ export function Hero() {
           >
             Let's work together
           </button>
-          <a
+          {/* <a
             href={siteConfig.social.github}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-2 py-3 text-sm font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
           >
             <GitHubIcon className="h-4 w-4" /> View GitHub
-          </a>
+          </a> */}
         </div>
 
         <div
